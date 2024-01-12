@@ -1,0 +1,554 @@
+---
+title: "automatization_notebook"
+output: word_document
+date: "`r Sys.Date()`"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(tidyverse)
+
+```
+
+# Чтение данных
+
+В вашем варианте нужно использовать датасеты cardio_train_big или cardio_train_not_too_big.
+
+```{r}
+data = read.csv2("cardio_train_big.csv")
+data_short = read.csv2("cardio_train_not_too_big.csv")
+```
+
+# Выведите общее описание данных
+
+```{r}
+head(data)
+head(data_short)
+```
+
+# Очистка данных
+
+1) Уберите переменные, в которых пропущенных значений больше 20% или уберите субъектов со слишком большим количеством пропущенных значений. Или совместите оба варианта. Напишите обоснование, почему вы выбрали тот или иной вариант:
+
+**Обоснование**: 
+
+2) Переименуйте переменные в человекочитаемый вид (что делать с пробелами в названиях?);
+
+3) В соответствии с описанием данных приведите переменные к нужному типу (numeric или factor);
+
+4) Отсортируйте данные по возрасту по убыванию;
+
+5) Сохраните в файл outliers.csv субъектов, которые являются выбросами (например, по правилу трёх сигм) — это необязательное задание со звёздочкой;
+
+6) Присвойте получившийся датасет переменной "cleaned_data".
+
+```{r}
+sum(is.na(data_short))
+sum(is.na(data))
+#нет пропущенных значений
+#нет пробелов в названиях
+#числа для веса
+data_short$weight = as.numeric(data_short$weight)
+data$weight = as.numeric(data$weight)
+#удалить выбросы
+zscore = function(x) {(x-mean(x))/sd(x)}
+z_scores_short = data_short
+z_scores = data
+z_scores_short[,2] = zscore(data_short[,2])
+z_scores[,2] = zscore(data[,2])
+z_scores_short[,4:7] = sapply(data_short[,4:7], zscore)
+z_scores[,4:7] = sapply(data[,4:7], zscore)
+write.csv(data_short[rowSums(abs(z_scores_short[2:7]) > 3) > 0, ], "outliers_short.csv")
+write.csv(data[rowSums(abs(z_scores[2:7]) > 3) > 0, ], "outliers.csv")
+cleaned_data_short = data_short[!rowSums(abs(z_scores_short[2:7]) > 3) > 0, ]
+cleaned_data = data[!rowSums(abs(z_scores[2:7]) > 3) > 0, ]
+#факторы и сортировка
+cleaned_data_short$gender = as.factor(cleaned_data_short$gender)
+cleaned_data$gender = as.factor(cleaned_data$gender)
+cleaned_data_short$cholesterol = as.factor(cleaned_data_short$cholesterol)
+cleaned_data$cholesterol = as.factor(cleaned_data$cholesterol)
+cleaned_data_short$gluc = as.factor(cleaned_data_short$gluc)
+cleaned_data$gluc = as.factor(cleaned_data$gluc)
+cleaned_data_short$smoke = as.factor(cleaned_data_short$smoke)
+cleaned_data$smoke = as.factor(cleaned_data$smoke)
+cleaned_data_short$alco = as.factor(cleaned_data_short$alco)
+cleaned_data$alco = as.factor(cleaned_data$alco)
+cleaned_data_short$active = as.factor(cleaned_data_short$active)
+cleaned_data$active = as.factor(cleaned_data$active)
+cleaned_data_short$cardio = as.factor(cleaned_data_short$cardio)
+cleaned_data$cardio = as.factor(cleaned_data$cardio)
+cleaned_data_short = cleaned_data_short[order(cleaned_data_short$age),]
+cleaned_data = cleaned_data[order(cleaned_data$age),]
+```
+
+# Сколько осталось переменных?
+
+```{r}
+print("остались все переменные (12)")
+```
+
+# Сколько осталось случаев?
+
+```{r}
+print(paste0("В короткой таблице осталось ", nrow(cleaned_data_short), " случаев"))
+print(paste0("В полной таблице осталось ", nrow(cleaned_data), " случаев"))
+```
+
+# Есть ли в данных идентичные строки?
+
+```{r}
+sum(duplicated(cleaned_data_short))
+sum(duplicated(cleaned_data))
+print("нет идентичных строк")
+```
+
+# Сколько всего переменных с пропущенными значениями в данных и сколько пропущенных точек в каждой такой переменной?
+
+```{r}
+print("нет пропущенных значений")
+```
+
+# Описательные статистики
+
+## Количественные переменные
+
+1) Рассчитайте для всех количественных переменных для каждой группы (наличие или отсутствие сердечно-сосудистых заболеваний):
+
+1.1) Количество значений;
+
+1.2) Количество пропущенных значений;
+
+1.3) Среднее;
+
+1.4) Медиану;
+
+1.5) Стандартное отклонение;
+
+1.6) 25% квантиль и 75% квантиль;
+
+1.7) Интерквартильный размах;
+
+1.8) Минимум;
+
+1.9) Максимум;
+
+1.10) 95% ДИ для среднего - задание со звёздочкой.
+
+```{r}
+#short_table
+statistics_short_nocardio = matrix(nrow = 12, ncol = 6)
+statistics_short_cardio = matrix(nrow = 12, ncol = 6)
+rownames(statistics_short_nocardio) = c("Значения", "Пропущенные значения", "Среднее", "Медиана",
+                                        "Стандартное отклонение", "25% квантиль", "75% квантиль",
+                                        "Интерквартильный размах", "Минимум", "Максимум",
+                                        "95% ДИ для среднего, низ", "95% ДИ для среднего, верх")
+#conf int - by Z or T-test?
+rownames(statistics_short_cardio) = rownames(statistics_short_nocardio)
+colnames(statistics_short_nocardio) = c("Возраст", "Пол", "Рост", "Вес", "Систолическое давление", "Диастолическое давление")
+colnames(statistics_short_cardio) = colnames(statistics_short_nocardio)
+for (i in 2:7){
+  statistics_short_nocardio[,i-1] = c(length(cleaned_data_short[cleaned_data_short$cardio == '0',][,i]),
+                                      sum(is.na(cleaned_data_short[cleaned_data_short$cardio == '0',][,i])),
+                                      mean(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '0',][,i])),
+                                      median(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '0',][,i])),
+                                      sd(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '0',][,i])),
+                                      quantile(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '0',][,i]), 0.25),
+                                      quantile(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '0',][,i]), 0.75),
+                                      quantile(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '0',][,i]), 0.75)-
+                                        quantile(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '0',][,i]), 0.25),
+                                      min(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '0',][,i])),
+                                      max(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '0',][,i])),
+                                      mean(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '0',][,i]))-
+                                        1.96*sd(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '0',][,i]))/
+                                        sqrt(length(cleaned_data_short[cleaned_data_short$cardio == '0',][,i])),
+                                      mean(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '0',][,i]))+
+                                        1.96*sd(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '0',][,i]))/
+                                        sqrt(length(cleaned_data_short[cleaned_data_short$cardio == '0',][,i])))
+  statistics_short_cardio[,i-1] = c(length(cleaned_data_short[cleaned_data_short$cardio == '1',][,i]),
+                                    sum(is.na(cleaned_data_short[cleaned_data_short$cardio == '1',][,i])),
+                                    mean(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '1',][,i])),
+                                    median(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '1',][,i])),
+                                    sd(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '1',][,i])),
+                                    quantile(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '1',][,i]), 0.25),
+                                    quantile(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '1',][,i]), 0.75),
+                                    quantile(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '1',][,i]), 0.75)-
+                                      quantile(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '1',][,i]), 0.25),
+                                    min(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '1',][,i])),
+                                    max(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '1',][,i])),
+                                    mean(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '1',][,i]))-
+                                      1.96*sd(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '1',][,i]))/
+                                      sqrt(length(cleaned_data_short[cleaned_data_short$cardio == '1',][,i])),
+                                    mean(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '1',][,i]))+
+                                      1.96*sd(as.numeric(cleaned_data_short[cleaned_data_short$cardio == '1',][,i]))/
+                                      sqrt(length(cleaned_data_short[cleaned_data_short$cardio == '1',][,i])))
+}
+statistics_short_nocardio = statistics_short_nocardio[,-2]
+statistics_short_cardio = statistics_short_cardio[,-2]
+print(statistics_short_nocardio)
+print(statistics_short_cardio)
+#long table
+statistics_nocardio = matrix(nrow = 12, ncol = 6)
+statistics_cardio = matrix(nrow = 12, ncol = 6)
+rownames(statistics_nocardio) = c("Значения", "Пропущенные значения", "Среднее", "Медиана",
+                                        "Стандартное отклонение", "25% квантиль", "75% квантиль",
+                                        "Интерквартильный размах", "Минимум", "Максимум",
+                                        "95% ДИ для среднего, низ", "95% ДИ для среднего, верх")
+rownames(statistics_cardio) = rownames(statistics_nocardio)
+colnames(statistics_nocardio) = c("Возраст", "Пол", "Рост", "Вес", "Систолическое давление", "Диастолическое давление")
+colnames(statistics_cardio) = colnames(statistics_nocardio)
+for (i in 2:7){
+  statistics_nocardio[,i-1] = c(length(cleaned_data[cleaned_data$cardio == '0',][,i]),
+                                      sum(is.na(cleaned_data[cleaned_data$cardio == '0',][,i])),
+                                      mean(as.numeric(cleaned_data[cleaned_data$cardio == '0',][,i])),
+                                      median(as.numeric(cleaned_data[cleaned_data$cardio == '0',][,i])),
+                                      sd(as.numeric(cleaned_data[cleaned_data$cardio == '0',][,i])),
+                                      quantile(as.numeric(cleaned_data[cleaned_data$cardio == '0',][,i]), 0.25),
+                                      quantile(as.numeric(cleaned_data[cleaned_data$cardio == '0',][,i]), 0.75),
+                                      quantile(as.numeric(cleaned_data[cleaned_data$cardio == '0',][,i]), 0.75)-
+                                        quantile(as.numeric(cleaned_data[cleaned_data$cardio == '0',][,i]), 0.25),
+                                      min(as.numeric(cleaned_data[cleaned_data$cardio == '0',][,i])),
+                                      max(as.numeric(cleaned_data[cleaned_data$cardio == '0',][,i])),
+                                      mean(as.numeric(cleaned_data[cleaned_data$cardio == '0',][,i]))-
+                                        1.96*sd(as.numeric(cleaned_data[cleaned_data$cardio == '0',][,i]))/
+                                        sqrt(length(cleaned_data_short[cleaned_data$cardio == '0',][,i])),
+                                      mean(as.numeric(cleaned_data[cleaned_data$cardio == '0',][,i]))+
+                                        1.96*sd(as.numeric(cleaned_data[cleaned_data$cardio == '0',][,i]))/
+                                        sqrt(length(cleaned_data_short[cleaned_data$cardio == '0',][,i])))
+  statistics_cardio[,i-1] = c(length(cleaned_data[cleaned_data$cardio == '1',][,i]),
+                                    sum(is.na(cleaned_data[cleaned_data$cardio == '1',][,i])),
+                                    mean(as.numeric(cleaned_data[cleaned_data$cardio == '1',][,i])),
+                                    median(as.numeric(cleaned_data[cleaned_data$cardio == '1',][,i])),
+                                    sd(as.numeric(cleaned_data[cleaned_data$cardio == '1',][,i])),
+                                    quantile(as.numeric(cleaned_data[cleaned_data$cardio == '1',][,i]), 0.25),
+                                    quantile(as.numeric(cleaned_data[cleaned_data$cardio == '1',][,i]), 0.75),
+                                    quantile(as.numeric(cleaned_data[cleaned_data$cardio == '1',][,i]), 0.75)-
+                                      quantile(as.numeric(cleaned_data[cleaned_data$cardio == '1',][,i]), 0.25),
+                                    min(as.numeric(cleaned_data[cleaned_data$cardio == '1',][,i])),
+                                    max(as.numeric(cleaned_data[cleaned_data$cardio == '1',][,i])),
+                                    mean(as.numeric(cleaned_data[cleaned_data$cardio == '1',][,i]))-
+                                      1.96*sd(as.numeric(cleaned_data[cleaned_data$cardio == '1',][,i]))/
+                                      sqrt(length(cleaned_data_short[cleaned_data$cardio == '1',][,i])),
+                                    mean(as.numeric(cleaned_data[cleaned_data$cardio == '1',][,i]))+
+                                      1.96*sd(as.numeric(cleaned_data[cleaned_data$cardio == '1',][,i]))/
+                                      sqrt(length(cleaned_data_short[cleaned_data$cardio == '1',][,i])))
+}
+statistics_nocardio = statistics_nocardio[,-2]
+statistics_cardio = statistics_cardio[,-2]
+print(statistics_nocardio)
+print(statistics_cardio)
+```
+
+## Категориальные переменные
+
+1) Рассчитайте для всех категориальных переменных для каждой группы (наличие или отсутствие сердечно-сосудистых заболеваний):
+
+1.1) Абсолютное количество;
+
+1.2) Относительное количество внутри группы;
+
+1.3) 95% ДИ для доли внутри группы - задание со звёздочкой.
+
+```{r}
+#short table
+contingency_short_nocardio = list(matrix(nrow = 4, ncol = 2), matrix(nrow = 4, ncol = 3), matrix(nrow = 4, ncol = 3),
+                                  matrix(nrow = 4, ncol = 2), matrix(nrow = 4, ncol = 2), matrix(nrow = 4, ncol = 2))
+for (i in 1:length(contingency_short_nocardio)){
+  rownames(contingency_short_nocardio[[i]]) = c("Абсолютное количество", "Относительное количество",
+                                                "95% ДИ для доли, низ", "95% ДИ для доли, верх")
+}
+colnames(contingency_short_nocardio[[1]]) = c("Мужчины", "Женщины")
+colnames(contingency_short_nocardio[[2]]) = c("Низкий холестерол","Высокий холестерол", "Очень высокий холестерол")
+colnames(contingency_short_nocardio[[3]]) = c("Низкая глюкоза",  "Высокая глюкоза", "Очень высокая глюкоза")
+colnames(contingency_short_nocardio[[4]]) = c("Нет курения", "Курение")
+colnames(contingency_short_nocardio[[5]]) = c("Нет алкоголя", "Алкоголь")
+colnames(contingency_short_nocardio[[6]]) = c("Нет активности", "Активность")
+contingency_short_cardio = contingency_short_nocardio
+contingency_short_nocardio[[1]][1,] = t(table(cleaned_data_short[,c(3,13)]))[1,]
+contingency_short_nocardio[[1]][2,] = contingency_short_nocardio[[1]][1,]/sum(contingency_short_nocardio[[1]][1,])
+contingency_short_nocardio[[1]][3,] = contingency_short_nocardio[[1]][2,]-
+  1.96*sqrt(contingency_short_nocardio[[1]][2,]*(1-contingency_short_nocardio[[1]][2,])
+            /sum(contingency_short_nocardio[[1]][1,]))
+contingency_short_nocardio[[1]][4,] = contingency_short_nocardio[[1]][2,]+
+  1.96*sqrt(contingency_short_nocardio[[1]][2,]*(1-contingency_short_nocardio[[1]][2,])
+            /sum(contingency_short_nocardio[[1]][1,]))
+for (i in 2:length(contingency_short_nocardio)){
+  contingency_short_nocardio[[i]][1,] = t(table(cleaned_data_short[,c(i+6,13)]))[1,]
+  contingency_short_nocardio[[i]][2,] = contingency_short_nocardio[[i]][1,]/sum(contingency_short_nocardio[[i]][1,])
+  contingency_short_nocardio[[i]][3,] = contingency_short_nocardio[[i]][2,]-
+  1.96*sqrt(contingency_short_nocardio[[i]][2,]*(1-contingency_short_nocardio[[i]][2,])
+            /sum(contingency_short_nocardio[[i]][1,]))
+  contingency_short_nocardio[[i]][4,] = contingency_short_nocardio[[i]][2,]+
+  1.96*sqrt(contingency_short_nocardio[[i]][2,]*(1-contingency_short_nocardio[[i]][2,])
+            /sum(contingency_short_nocardio[[i]][1,]))
+}
+contingency_short_cardio[[1]][1,] = t(table(cleaned_data_short[,c(3,13)]))[2,]
+contingency_short_cardio[[1]][2,] = contingency_short_nocardio[[1]][1,]/sum(contingency_short_nocardio[[1]][1,])
+contingency_short_cardio[[1]][3,] = contingency_short_cardio[[1]][2,]-
+  1.96*sqrt(contingency_short_cardio[[1]][2,]*(1-contingency_short_cardio[[1]][2,])
+            /sum(contingency_short_cardio[[1]][1,]))
+contingency_short_cardio[[1]][4,] = contingency_short_cardio[[1]][2,]+
+  1.96*sqrt(contingency_short_cardio[[1]][2,]*(1-contingency_short_cardio[[1]][2,])
+            /sum(contingency_short_cardio[[1]][1,]))
+for (i in 2:length(contingency_short_cardio)){
+  contingency_short_cardio[[i]][1,] = t(table(cleaned_data_short[,c(i+6,13)]))[2,]
+  contingency_short_cardio[[i]][2,] = contingency_short_cardio[[i]][1,]/sum(contingency_short_cardio[[i]][1,])
+  contingency_short_cardio[[i]][3,] = contingency_short_cardio[[i]][2,]-
+  1.96*sqrt(contingency_short_cardio[[i]][2,]*(1-contingency_short_cardio[[i]][2,])
+            /sum(contingency_short_cardio[[i]][1,]))
+  contingency_short_cardio[[i]][4,] = contingency_short_cardio[[i]][2,]+
+  1.96*sqrt(contingency_short_cardio[[i]][2,]*(1-contingency_short_cardio[[i]][2,])
+            /sum(contingency_short_cardio[[i]][1,]))
+}
+print(contingency_short_nocardio)
+print(contingency_short_cardio)
+#long table
+contingency_nocardio = contingency_short_nocardio
+contingency_cardio = contingency_short_cardio
+contingency_nocardio[[1]][1,] = t(table(cleaned_data[,c(3,13)]))[1,]
+contingency_nocardio[[1]][2,] = contingency_nocardio[[1]][1,]/sum(contingency_nocardio[[1]][1,])
+contingency_nocardio[[1]][3,] = contingency_nocardio[[1]][2,]-
+  1.96*sqrt(contingency_nocardio[[1]][2,]*(1-contingency_nocardio[[1]][2,])
+            /sum(contingency_nocardio[[1]][1,]))
+contingency_nocardio[[1]][4,] = contingency_nocardio[[1]][2,]+
+  1.96*sqrt(contingency_nocardio[[1]][2,]*(1-contingency_nocardio[[1]][2,])
+            /sum(contingency_nocardio[[1]][1,]))
+for (i in 2:length(contingency_nocardio)){
+  contingency_nocardio[[i]][1,] = t(table(cleaned_data[,c(i+6,13)]))[1,]
+  contingency_nocardio[[i]][2,] = contingency_nocardio[[i]][1,]/sum(contingency_nocardio[[i]][1,])
+  contingency_nocardio[[i]][3,] = contingency_nocardio[[i]][2,]-
+  1.96*sqrt(contingency_nocardio[[i]][2,]*(1-contingency_nocardio[[i]][2,])
+            /sum(contingency_nocardio[[i]][1,]))
+  contingency_nocardio[[i]][4,] = contingency_nocardio[[i]][2,]+
+  1.96*sqrt(contingency_nocardio[[i]][2,]*(1-contingency_nocardio[[i]][2,])
+            /sum(contingency_nocardio[[i]][1,]))
+}
+contingency_cardio[[1]][1,] = t(table(cleaned_data[,c(3,13)]))[2,]
+contingency_cardio[[1]][2,] = contingency_nocardio[[1]][1,]/sum(contingency_nocardio[[1]][1,])
+contingency_cardio[[1]][3,] = contingency_cardio[[1]][2,]-
+  1.96*sqrt(contingency_cardio[[1]][2,]*(1-contingency_cardio[[1]][2,])
+            /sum(contingency_cardio[[1]][1,]))
+contingency_cardio[[1]][4,] = contingency_cardio[[1]][2,]+
+  1.96*sqrt(contingency_cardio[[1]][2,]*(1-contingency_cardio[[1]][2,])
+            /sum(contingency_cardio[[1]][1,]))
+for (i in 2:length(contingency_cardio)){
+  contingency_cardio[[i]][1,] = t(table(cleaned_data[,c(i+6,13)]))[2,]
+  contingency_cardio[[i]][2,] = contingency_cardio[[i]][1,]/sum(contingency_cardio[[i]][1,])
+  contingency_cardio[[i]][3,] = contingency_cardio[[i]][2,]-
+  1.96*sqrt(contingency_cardio[[i]][2,]*(1-contingency_cardio[[i]][2,])
+            /sum(contingency_cardio[[i]][1,]))
+  contingency_cardio[[i]][4,] = contingency_cardio[[i]][2,]+
+  1.96*sqrt(contingency_cardio[[i]][2,]*(1-contingency_cardio[[i]][2,])
+            /sum(contingency_cardio[[i]][1,]))
+}
+print(contingency_nocardio)
+print(contingency_cardio)
+```
+
+# Визуализация
+
+## Количественные переменные
+
+1) Для каждой количественной переменной сделайте боксплоты по группам. Расположите их либо на отдельных рисунках, либо на одном, но читаемо;
+
+2) Наложите на боксплоты beeplots - задание со звёздочкой.
+
+3) Раскрасьте боксплоты с помощью библиотеки RColorBrewer.
+
+```{r}
+library(RColorBrewer)
+mypalette = adjustcolor(brewer.pal(3, "Spectral"), alpha = 0.5)
+#short table
+if(!require(beeswarm)) install.packages("beeswarm")
+library(beeswarm)
+beeswarm(age ~ cardio, data = cleaned_data_short, method = 'swarm', xlab = '', ylab = 'Age', 
+         labels = c("Healthy", "Diseased"))
+boxplot(age ~ cardio, data = cleaned_data_short, add = T, names = c("",""), col=mypalette)
+beeswarm(height ~ cardio, data = cleaned_data_short, method = 'swarm', xlab = '', ylab = 'Height', 
+         labels = c("Healthy", "Diseased"))
+boxplot(height ~ cardio, data = cleaned_data_short, add = T, names = c("",""), col=mypalette)
+beeswarm(weight ~ cardio, data = cleaned_data_short, method = 'swarm', xlab = '', ylab = 'Weight', 
+         labels = c("Healthy", "Diseased"))
+boxplot(weight ~ cardio, data = cleaned_data_short, add = T, names = c("",""), col=mypalette)
+beeswarm(ap_hi ~ cardio, data = cleaned_data_short, method = 'square', xlab = '', ylab = 'Systolic pressure', 
+         labels = c("Healthy", "Diseased"), cex = 0.5)
+boxplot(ap_hi ~ cardio, data = cleaned_data_short, add = T, names = c("",""), col=mypalette)
+beeswarm(ap_lo ~ cardio, data = cleaned_data_short, method = 'hex', xlab = '', ylab = 'Diastolic pressure', 
+         labels = c("Healthy", "Diseased"), cex = 0.5)
+boxplot(ap_lo ~ cardio, data = cleaned_data_short, add = T, names = c("",""), col=mypalette)
+
+#long table
+#beeplot
+ggplot(cleaned_data) + geom_boxplot(aes(x = cardio, y = age, fill = cardio), show.legend = F) +  ggtitle("Age") +
+  scale_x_discrete(name = "", labels=c("Healthy", "Diseased")) +  scale_fill_manual(values = mypalette)
+#beeplot
+ggplot(cleaned_data) + geom_boxplot(aes(x = cardio, y = height, fill = cardio), show.legend = F) +  ggtitle("Height") +
+  scale_x_discrete(name = "", labels=c("Healthy", "Diseased")) +  scale_fill_manual(values = mypalette)
+#beeplot
+ggplot(cleaned_data) + geom_boxplot(aes(x = cardio, y = weight, fill = cardio), show.legend = F) +  ggtitle("Weight") +
+  scale_x_discrete(name = "", labels=c("Healthy", "Diseased")) +  scale_fill_manual(values = mypalette)
+#beeplot
+ggplot(cleaned_data) + geom_boxplot(aes(x = cardio, y = ap_hi, fill = cardio), show.legend = F) +
+  ggtitle("Systolic pressure") +  scale_x_discrete(name = "", labels=c("Healthy", "Diseased")) +
+  scale_fill_manual(values = mypalette)
+#beeplot
+ggplot(cleaned_data) + geom_boxplot(aes(x = cardio, y = ap_lo, fill = cardio), show.legend = F) +
+  ggtitle("Diastolic pressure") +  scale_x_discrete(name = "", labels=c("Healthy", "Diseased")) +
+  scale_fill_manual(values = mypalette)
+```
+
+## Категориальные переменные
+
+1) Сделайте подходящие визуализации категориальных переменных. Обоснуйте, почему выбрали именно этот тип.
+
+```{r}
+#Выбрали мозаичный график, так как хорошо визуализирует разницу для двух групп на одном графике
+#short table
+library(ggmosaic)
+ggplot(data = cleaned_data_short[,c(3,13)]) +
+  geom_mosaic(aes(x = product(cardio), fill = gender), na.rm = TRUE, show.legend = FALSE)
+ggplot(data = cleaned_data_short[,c(8,13)]) +
+  geom_mosaic(aes(x = product(cardio), fill = cholesterol), na.rm = TRUE, show.legend = FALSE)
+ggplot(data = cleaned_data_short[,c(9,13)]) +
+  geom_mosaic(aes(x = product(cardio), fill = gluc), na.rm = TRUE, show.legend = FALSE)
+ggplot(data = cleaned_data_short[,c(10,13)]) +
+  geom_mosaic(aes(x = product(cardio), fill = smoke), na.rm = TRUE, show.legend = FALSE)
+ggplot(data = cleaned_data_short[,c(11,13)]) +
+  geom_mosaic(aes(x = product(cardio), fill = alco), na.rm = TRUE, show.legend = FALSE)
+ggplot(data = cleaned_data_short[,c(12,13)]) +
+  geom_mosaic(aes(x = product(cardio), fill = active), na.rm = TRUE, show.legend = FALSE)
+#long table
+ggplot(data = cleaned_data[,c(3,13)]) +
+  geom_mosaic(aes(x = product(cardio), fill = gender), na.rm = TRUE, show.legend = FALSE)
+ggplot(data = cleaned_data[,c(8,13)]) +
+  geom_mosaic(aes(x = product(cardio), fill = cholesterol), na.rm = TRUE, show.legend = FALSE)
+ggplot(data = cleaned_data[,c(9,13)]) +
+  geom_mosaic(aes(x = product(cardio), fill = gluc), na.rm = TRUE, show.legend = FALSE)
+ggplot(data = cleaned_data[,c(10,13)]) +
+  geom_mosaic(aes(x = product(cardio), fill = smoke), na.rm = TRUE, show.legend = FALSE)
+ggplot(data = cleaned_data[,c(11,13)]) +
+  geom_mosaic(aes(x = product(cardio), fill = alco), na.rm = TRUE, show.legend = FALSE)
+ggplot(data = cleaned_data[,c(12,13)]) +
+  geom_mosaic(aes(x = product(cardio), fill = active), na.rm = TRUE, show.legend = FALSE)
+```
+
+
+# Статистические оценки
+
+## Проверка на нормальность
+
+1) Оцените каждую переменную на соответствие нормальному распределению с помощью теста Шапиро-Уилка. Какие из переменных являются нормальными и как как вы это поняли?
+
+```{r}
+library(nortest)
+normality_pvalues_short = c(rep(0,5))
+normality_pvalues_short[1] = shapiro.test(cleaned_data_short[,2])$p
+for (i in 2:5){
+  normality_pvalues_short[i] = shapiro.test(cleaned_data_short[,i+2])$p
+}
+print(normality_pvalues_short)
+print("Все переменные не распределены нормально")
+normality_pvalues = c(rep(0,5))
+print ("тест Шапиро-Уилка не работает для n>5000, используем тест Андерсона-Дарлинга")
+library(nortest)
+normality_pvalues[1] = ad.test(cleaned_data[,2])$p
+for (i in 2:5){
+  normality_pvalues[i] = ad.test(cleaned_data[,i+2])$p
+}
+print(normality_pvalues)
+print("Все переменные не распределены нормально")
+```
+
+2) Постройте для каждой количественной переменной QQ-плот. Отличаются ли выводы от теста Шапиро-Уилка? Какой метод вы бы предпочли и почему?
+
+```{r}
+qqnorm(cleaned_data_short[,2])
+qqline(cleaned_data_short[,2])
+for (i in 4:7){
+  qqnorm(cleaned_data_short[,i])
+  qqline(cleaned_data_short[,i])
+}
+qqnorm(cleaned_data[,2])
+qqline(cleaned_data[,2])
+for (i in 4:7){
+  qqnorm(cleaned_data[,i])
+  qqline(cleaned_data[,i])
+}
+#QQ-графики показывают отклонения от нормального распределения, в особенности в области низких и высоких значений всех параметров, что согласуется с низкими p-value в тесте Шапиро-Уилка и в других тестах на нормальность. Также имеется проблема в дискретности данных. В любом случае, лучше ориентироваться на формальные тесты, а не на визуальную оценку.
+```
+
+3) Ниже напишите, какие ещё методы проверки на нормальность вы знаете и какие у них есть ограничения.
+
+#Тест Колмогорова-Смирнова. Не может работать с повторяющимися значениями
+#Тест Андерсона-Дарлинга.
+#Тест Пирсона-д'Агостино.
+#Построение гистограммы и аппроксимация нормальным распределением. Ограничения в том, что нужно выбирать ширину столбцов в гистограмме и визуально сложно заметить определенные отклонения.
+
+## Сравнение групп
+
+1) Сравните группы (переменная **cardio**) по каждой переменной (как количественной, так и категориальной). Для каждой переменной выберите нужный критерий и кратко обоснуйте его выбор в комментариях.
+
+```{r}
+print ("Для количественных переменных используем тест Уилкоксона, так как сравниваем две выборки, не распределенные нормально")
+#short table
+wilcox_pvalues_short = c(rep(0,5))
+wilcox_pvalues_short[1] = wilcox.test(cleaned_data_short[,2]~cleaned_data_short[,13])$p.value
+for (i in 2:5){
+  wilcox_pvalues_short[i] = wilcox.test(cleaned_data_short[,i+2]~cleaned_data_short[,13])$p.value
+}
+print(wilcox_pvalues_short)
+print("Для укороченной таблицы возраст, вес и артериальное давление различаются в группах здоровых и больных, рост не различается")
+#long table
+wilcox_pvalues = c(rep(0,5))
+wilcox_pvalues[1] = wilcox.test(cleaned_data[,2]~cleaned_data[,13])$p.value
+for (i in 2:5){
+  wilcox_pvalues[i] = wilcox.test(cleaned_data[,i+2]~cleaned_data[,13])$p.value
+}
+print(wilcox_pvalues)
+print("Для полной таблицы в группах здоровых и больных различаются все количественные переменные (Возраст, рост, вес и артериальное давление)")
+print ("Для категориальных переменных используем точный тест Фишера (или его расширение, тест Фримена-Гальтона), так как он более точный и есть группы с малым количеством людей (для холестерола и глюкозы). Но в случае групп со схожими долями можно использовать тест хи-квадрат, а если групп только две - также и Z-test")
+#short table
+fisher_pvalues_short = c(rep(0,6))
+fisher_pvalues_short[1] = fisher.test(table(cleaned_data_short[,c(3,13)]))$p
+for (i in 2:6){
+  fisher_pvalues_short[i] = fisher.test(table(cleaned_data_short[,c(i+6,13)]))$p
+}
+print(fisher_pvalues_short)
+print("Для укороченной таблицы уровень холестерола различается в группах здоровых и больных, остальные категориальные переменные (пол, уровень глюкозы, курение, алкоголь, физическая активность) не различаются")
+#long table
+fisher_pvalues = c(rep(0,6))
+fisher_pvalues[1] = fisher.test(table(cleaned_data[,c(3,13)]))$p
+for (i in 2:6){
+  fisher_pvalues[i] = fisher.test(table(cleaned_data[,c(i+6,13)]), workspace = 2000000)$p
+}
+print(fisher_pvalues)
+print("Для полной таблицы в группах здоровых и больных различаются все категориальные переменные (холестерол, уровень глюкозы, курение, алкоголь, физическая активность), кроме пола")
+```
+
+# Далее идут **необязательные** дополнительные задания, которые могут принести вам дополнительные баллы в том числе в случае ошибок в предыдущих
+
+## Корреляционный анализ
+
+1) Создайте корреляционную матрицу с визуализацией и поправкой на множественные сравнения. Объясните, когда лучше использовать корреляционные матрицы и в чём минусы и плюсы корреляционных исследований.
+
+```{r}
+#corr(data, method)
+#corrplot:: or pheatmap or heatmap
+#+ показывает ассоциации
+#- не показывает причинно-следственные связи, также коэфф. Пирсона используется когда данные нормально распределены и подвержен выбросам, а коэфф. Спирмена - непараметрический, т.е. не учитывает конкретные значения параметров.
+```
+
+## Моделирование
+
+1) Постройте регрессионную модель для переменной **cardio**. Опишите процесс построения
+
+```{r}
+#lm(cardio ~ var1+var2+var3, data = cleaned_data_short)
+#print (p-values for each variable)
+#lm(cardio ~ variables separately)
+
+```
+
+
+
+
