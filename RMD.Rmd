@@ -18,35 +18,31 @@ data <- read_tsv('C:/Users/sent-/Downloads/data_tsv.tsv')
 tibble(`var 1` = 1:10, `var 2` = `var 1` * 100)
 tibble(var_first = 1:10, var_second = ifelse(var_first < 5, var_first + 100, var_first))
 ```
-```{r}
-
-data %>% select(function(x) sd(x, na.rm = TRUE) > 1)
-
-data %>% select(where(is.numeric) & where(function(x) sd(x, na.rm = TRUE) > 1))
-
-data %>% select(`Группа`, function(x) !is.factor(x)) #T
-
-data %>% select(Группа крови, `Возраст`, function(x) anyNA(x))
-
-data %>% select(`Группа крови`, `Возраст`, function(x) anyNA(x)) #T
-
-data %>% select(`Группа`, (function(x) is.factor(x)) | where(function(x) is.numeric(x))) #T
-
-data %>% select(`Пол`, `Группа`, `Базофилы_E1`) #T
-
-data %>% select(function(x) any(str_detect(x, "Жен")))
-```
-```{r}
-data %>% mutate(across(function(x) any(near(x, 0.5, tol = 0.1)), function(x) x + 1000))
-
-data %>% mutate(across(!contains("E1"), function(x) str_c(x, " + некая строка"))) #T
-
-data %>% mutate(across(!contains("E1") & !c(`Группа`, `Возраст`), function(x) x ^ 2))
-
-data %>% mutate(across(!contains("E1") & !c(`Группа`, `Возраст`) & !where(is.factor), function(x) x ^ 2), across(contains("E2"), function(x) x * 100))
 ```
 
 ```{r}
 
+# Создаем новый столбец "Средний уровень гемоглобина"
+data$Average_Hemoglobin_Level <- rowMeans(data[, c("Гемоглобин_E1", "Гемоглобин_E2")], na.rm = TRUE)
+
+# Выводим обновленную таблицу
+print(data)
+
+
+```
+
+```{r}
+data <- na.omit(data)
+any(is.na(data))
+```
+
+```{r}
+# Создаем новый столбец "Сумма_Эозинофилы"
+data$Сумма_Эозинофилы <- data$Эозинофилы_E1 + data$Эозинофилы_E2
+
+```
+
+```{r}
+data <- data[, !names(data) %in% "Базофилы_E2"]
 ```
 
